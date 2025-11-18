@@ -79,6 +79,7 @@ class DescriptionGenerator:
         article_column: str = "Артикул",
         name_column: str = "Наименование",
         description_column: str = "Описание",
+        custom_prompt: Optional[str] = None,
         force: bool = False,
         dry_run: bool = False,
         max_retries: int = 3,
@@ -92,6 +93,7 @@ class DescriptionGenerator:
         self.article_column = article_column
         self.name_column = name_column
         self.description_column = description_column
+        self.custom_prompt = custom_prompt
         self.force = force
         self.dry_run = dry_run
         self.max_retries = max_retries
@@ -225,13 +227,31 @@ class DescriptionGenerator:
             )
 
     def _build_prompt(self, article: str, name: str) -> str:
+        # Use custom prompt if provided
+        if self.custom_prompt:
+            try:
+                # Try to format with both article and name
+                if article and article.strip():
+                    return self.custom_prompt.format(article=article.strip(), name=name.strip())
+                else:
+                    # If no article, try with just name
+                    return self.custom_prompt.format(name=name.strip())
+            except KeyError:
+                # If format fails (e.g., prompt doesn't have {article} or {name}), use as-is
+                return self.custom_prompt
+        
+        # Use default templates
         if article and article.strip():
             return PROMPT_TEMPLATE_WITH_ARTICLE.format(article=article.strip(), name=name.strip())
         else:
             return PROMPT_TEMPLATE_WITHOUT_ARTICLE.format(name=name.strip())
 
-    def _is_russian_text(self, text: str) -> bool:
-        return bool(re.search(r"[А-Яа-яЁё]", text or ""))
+    def _is_valid_text(self, text: str) -> bool:
+        """Check if text contains valid content (Russian, Polish, or other non-ASCII characters)"""
+        if not text or not text.strip():
+            return False
+        # Check for Cyrillic (Russian), Latin with diacritics (Polish), or other non-ASCII
+        return bool(re.search(r"[А-Яа-яЁёĄąĆćĘęŁłŃńÓóŚśŹźŻż]", text or "")) or len(text.strip()) > 10
 
     def _generate_description(self, article: str, name: str) -> str:
         prompt = self._build_prompt(article, name)
@@ -244,18 +264,24 @@ class DescriptionGenerator:
             for attempt in range(1, self.max_retries + 1):
                 try:
                     self.logger.debug("LLM request attempt %s for article %s with model %s", attempt, article, model_name)
+                    # System message - use generic if custom prompt, otherwise Russian-specific
+                    if self.custom_prompt:
+                        system_msg = "Ты пишешь продающие описания автозапчастей. Следуй инструкциям в промпте."
+                    else:
+                        system_msg = "Ты пишешь продающие описания автозапчастей. Используй только русский язык."
+                    
                     messages = [
-                        {"role": "system", "content": "Ты пишешь продающие описания автозапчастей. Используй только русский язык."},
+                        {"role": "system", "content": system_msg},
                         {"role": "user", "content": prompt},
                     ]
                     if attempt > 1:
+                        retry_msg = "Предыдущий ответ был пустой или некорректный. Сейчас обязательно верни развёрнутое описание."
+                        if not self.custom_prompt:
+                            retry_msg += " Используй русский язык."
                         messages.append(
                             {
                                 "role": "user",
-                                "content": (
-                                    "Предыдущий ответ был пустой или не на русском. "
-                                    "Сейчас обязательно верни развёрнутое описание на русском языке."
-                                ),
+                                "content": retry_msg,
                             }
                         )
 
@@ -291,8 +317,8 @@ class DescriptionGenerator:
                     text = "".join(parts).strip()
                     # Remove markdown code block formatting if present
                     text = text.removeprefix("```html").removesuffix("```").strip()
-                    if not text or not self._is_russian_text(text):
-                        raise RuntimeError("Пустой или не русскоязычный ответ модели.")
+                    if not text or not self._is_valid_text(text):
+                        raise RuntimeError("Пустой или некорректный ответ модели.")
                     
                     self.logger.info("✅ Успешно сгенерировано с использованием модели: %s", model_name)
                     return text
@@ -340,12 +366,18 @@ class DescriptionGenerator:
             "X-Title": app_title,
         }
 
+        # System message - use generic if custom prompt, otherwise Russian-specific
+        if self.custom_prompt:
+            system_msg = "Ты пишешь продающие описания автозапчастей. Следуй инструкциям в промпте."
+        else:
+            system_msg = "Ты пишешь продающие описания автозапчастей. Используй только русский язык."
+        
         payload = {
             "model": "deepseek/deepseek-chat-v3.1",
             "messages": [
                 {
                     "role": "system",
-                    "content": "Ты пишешь продающие описания автозапчастей. Используй только русский язык.",
+                    "content": system_msg,
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -377,8 +409,8 @@ class DescriptionGenerator:
         text = (message.get("content") or "").strip()
         text = text.removeprefix("```html").removesuffix("```").strip()
 
-        if not text or not self._is_russian_text(text):
-            raise RuntimeError("OpenRouter/DeepSeek вернул пустой ответ или не на русском языке.")
+        if not text or not self._is_valid_text(text):
+            raise RuntimeError("OpenRouter/DeepSeek вернул пустой или некорректный ответ.")
 
         self.logger.info("✅ Успешно сгенерировано через DeepSeek (OpenRouter).")
         return text
@@ -404,12 +436,12 @@ class DescriptionGenerator:
             if self.columns.article:
                 article = row[self.columns.article - 1].strip() if len(row) >= self.columns.article else ""
                 
-                name = row[self.columns.name - 1].strip() if len(row) >= self.columns.name else ""
-                description = (
-                    row[self.columns.description - 1].strip()
-                    if len(row) >= self.columns.description
-                    else ""
-                )
+            name = row[self.columns.name - 1].strip() if len(row) >= self.columns.name else ""
+            description = (
+                row[self.columns.description - 1].strip()
+                if len(row) >= self.columns.description
+                else ""
+            )
 
             if not name:
                 continue

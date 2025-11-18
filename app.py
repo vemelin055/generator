@@ -43,6 +43,19 @@ def login_required(f):
 
 def run_generation(sheet_id, sheet_name, header_row, article_column, name_column, description_column, start_row, end_row, prompt_text, force=False, dry_run=False):
     """Run the description generation script with given parameters"""
+    # Escape the prompt text for safe insertion into Python code
+    if prompt_text and prompt_text.strip():
+        # Escape backslashes and quotes for safe string insertion
+        escaped_prompt = (prompt_text
+                          .replace('\\', '\\\\')  # Escape backslashes first
+                          .replace('"', '\\"')    # Escape double quotes
+                          .replace("'", "\\'")    # Escape single quotes
+                          .replace('\n', '\\n')   # Escape newlines
+                          .replace('\r', '\\r'))  # Escape carriage returns
+        custom_prompt_value = f'"{escaped_prompt}"'
+    else:
+        custom_prompt_value = 'None'
+    
     # Create a temporary script to handle custom columns and header row
     temp_script = f"""
 import sys
@@ -62,6 +75,7 @@ generator = DescriptionGenerator(
     article_column="{article_column}",
     name_column="{name_column}",
     description_column="{description_column}",
+    custom_prompt={custom_prompt_value},
     force=args.force,
     dry_run=args.dry_run,
     max_retries=args.max_retries,
