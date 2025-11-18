@@ -19,23 +19,9 @@ process_queue = queue.Queue()
 current_process = None
 process_thread = None
 
-def run_generation(sheet_id, sheet_name, column_name, start_row, end_row, prompt_text, force=False, dry_run=False):
+def run_generation(sheet_id, sheet_name, header_row, article_column, name_column, description_column, start_row, end_row, prompt_text, force=False, dry_run=False):
     """Run the description generation script with given parameters"""
-    cmd = [
-        sys.executable, "generate_descriptions.py",
-        "--sheet-id", sheet_id,
-        "--worksheet", sheet_name,
-        "--start-row", str(start_row),
-        "--end-row", str(end_row),
-        "--log-level", "INFO"
-    ]
-    
-    if force:
-        cmd.append("--force")
-    if dry_run:
-        cmd.append("--dry-run")
-    
-    # Create a temporary script to handle the custom column name
+    # Create a temporary script to handle custom columns and header row
     temp_script = f"""
 import sys
 sys.path.insert(0, '.')
@@ -50,6 +36,10 @@ args.worksheet = "{sheet_name}"
 generator = DescriptionGenerator(
     sheet_id=args.sheet_id,
     worksheet_name=args.worksheet,
+    header_row={header_row},
+    article_column="{article_column}",
+    name_column="{name_column}",
+    description_column="{description_column}",
     force=args.force,
     dry_run=args.dry_run,
     max_retries=args.max_retries,
@@ -112,7 +102,10 @@ def start_generation():
     data = request.json
     sheet_url = data.get('sheet_url', '')
     sheet_name = data.get('sheet_name', '')
-    column_name = data.get('column_name', 'Описание')
+    header_row = data.get('header_row', 1)
+    article_column = data.get('article_column', 'Артикул')
+    name_column = data.get('name_column', 'Наименование')
+    description_column = data.get('description_column', 'Описание')
     start_row = data.get('start_row', 2)
     end_row = data.get('end_row', 100)
     prompt = data.get('prompt', '')
@@ -137,7 +130,7 @@ def start_generation():
     
     def generation_worker():
         try:
-            for line in run_generation(sheet_id, sheet_name, column_name, start_row, end_row, prompt, force, dry_run):
+            for line in run_generation(sheet_id, sheet_name, header_row, article_column, name_column, description_column, start_row, end_row, prompt, force, dry_run):
                 process_queue.put({
                     'timestamp': datetime.now().isoformat(),
                     'message': line.strip(),
@@ -213,15 +206,22 @@ def preview_sheet():
         spreadsheet = gc.open_by_key(sheet_id)
         worksheet = spreadsheet.worksheet(sheet_name)
         
+        # Get header row (default to 1, convert to 0-based index)
+        header_row = data.get('header_row', 1)
+        header_row_idx = max(0, header_row - 1)
+        
         # Get all data
-        data = worksheet.get_all_values()
-        headers = data[0] if data else []
-        rows = data[1:10] if len(data) > 1 else []  # First 9 rows for preview
+        all_data = worksheet.get_all_values()
+        headers = all_data[header_row_idx] if len(all_data) > header_row_idx else []
+        
+        # Get preview rows (skip header row, show next 9 rows)
+        preview_start = header_row_idx + 1
+        rows = all_data[preview_start:preview_start + 9] if len(all_data) > preview_start else []
         
         return jsonify({
             'headers': headers,
             'rows': rows,
-            'total_rows': len(data) - 1 if len(data) > 1 else 0
+            'total_rows': len(all_data) - header_row - 1 if len(all_data) > header_row else 0
         })
         
     except Exception as e:

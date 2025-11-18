@@ -65,6 +65,10 @@ class DescriptionGenerator:
         self,
         sheet_id: str,
         worksheet_name: str,
+        header_row: int = 1,
+        article_column: str = "Артикул",
+        name_column: str = "Наименование",
+        description_column: str = "Описание",
         force: bool = False,
         dry_run: bool = False,
         max_retries: int = 3,
@@ -74,6 +78,10 @@ class DescriptionGenerator:
         load_dotenv()
         self.sheet_id = self._normalize_sheet_id(sheet_id)
         self.worksheet_name = worksheet_name
+        self.header_row = header_row
+        self.article_column = article_column
+        self.name_column = name_column
+        self.description_column = description_column
         self.force = force
         self.dry_run = dry_run
         self.max_retries = max_retries
@@ -125,19 +133,46 @@ class DescriptionGenerator:
         return spreadsheet.worksheet(self.worksheet_name)
 
     def _resolve_columns(self) -> SheetColumns:
-        header = self.sheet.row_values(1)
+        # Get header row (convert to 1-based for gspread)
+        header = self.sheet.row_values(self.header_row)
         header_map: Dict[str, int] = {name.strip(): idx + 1 for idx, name in enumerate(header)}
 
-        try:
-            return SheetColumns(
-                article=header_map["Артикул"],
-                name=header_map["Наименование"],
-                description=header_map["Описание"],
-            )
-        except KeyError as exc:
+        # Find article and name columns
+        article_col = header_map.get(self.article_column)
+        name_col = header_map.get(self.name_column)
+        
+        if not article_col:
             raise RuntimeError(
-                f"Не найдена колонка '{exc.args[0]}' в первой строке. Проверьте заголовки."
+                f"Не найдена колонка '{self.article_column}' в строке {self.header_row}. "
+                "Проверьте заголовки или используйте кнопку 'ЗАГРУЗИТЬ КОЛОНКИ'."
             )
+        if not name_col:
+            raise RuntimeError(
+                f"Не найдена колонка '{self.name_column}' в строке {self.header_row}. "
+                "Проверьте заголовки или используйте кнопку 'ЗАГРУЗИТЬ КОЛОНКИ'."
+            )
+        
+        # Handle description column - create if it doesn't exist
+        description_col = header_map.get(self.description_column) if self.description_column else None
+        if not description_col:
+            if not self.description_column or self.description_column == "":
+                # User selected "create new column" - add it after the last column
+                last_col_idx = len(header)
+                description_col = last_col_idx + 1
+                # Insert header in the header row
+                self.sheet.update_cell(self.header_row, description_col, "Описание")
+                self.logger.info(f"✅ Создана новая колонка 'Описание' в позиции {description_col}")
+            else:
+                raise RuntimeError(
+                    f"Не найдена колонка '{self.description_column}' в строке {self.header_row}. "
+                    "Выберите '(создать новую колонку)' или используйте кнопку 'ЗАГРУЗИТЬ КОЛОНКИ'."
+                )
+        
+        return SheetColumns(
+            article=article_col,
+            name=name_col,
+            description=description_col,
+        )
 
     def _build_prompt(self, article: str, name: str) -> str:
         return PROMPT_TEMPLATE.format(article=article.strip(), name=name.strip())

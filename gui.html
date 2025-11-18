@@ -224,12 +224,34 @@
             <label for="sheetName">📝 Название листа:</label>
             <input type="text" id="sheetName" value="КомТехАвто">
             
-            <label for="columnName">📋 Колонка для редактирования:</label>
-            <input type="text" id="columnName" value="Описание">
+            <label for="headerRow">📑 Строка заголовков:</label>
+            <input type="number" id="headerRow" min="1" max="100" value="1" style="width: 100px;">
+            <small style="color: #00ff00; display: block; margin-top: 5px;">Номер строки, где находятся заголовки колонок (по умолчанию 1, для Мавико/ГП может быть 9)</small>
+        </div>
+        
+        <div class="control-group">
+            <label>📋 Выбор колонок:</label>
+            <label for="articleColumn" style="margin-top: 10px;">Артикул:</label>
+            <select id="articleColumn" style="width: 100%; padding: 10px; border: 2px solid #00ff00; background: #000; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 5px; margin-bottom: 10px;">
+                <option value="Артикул">Артикул</option>
+            </select>
+            
+            <label for="nameColumn">Наименование:</label>
+            <select id="nameColumn" style="width: 100%; padding: 10px; border: 2px solid #00ff00; background: #000; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 5px; margin-bottom: 10px;">
+                <option value="Наименование">Наименование</option>
+            </select>
+            
+            <label for="descriptionColumn">Описание (колонка для записи):</label>
+            <select id="descriptionColumn" style="width: 100%; padding: 10px; border: 2px solid #00ff00; background: #000; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 5px; margin-bottom: 10px;">
+                <option value="Описание">Описание</option>
+                <option value="">(создать новую колонку)</option>
+            </select>
+            <small style="color: #00ff00; display: block; margin-top: 5px;">Если колонка отсутствует, выберите "(создать новую колонку)"</small>
         </div>
         
         <div class="control-group">
             <button onclick="previewSheet()">👁️ ПРЕДПРОСМОТР ДАННЫХ</button>
+            <button onclick="loadColumns()" style="margin-left: 10px;">🔄 ЗАГРУЗИТЬ КОЛОНКИ</button>
         </div>
         
         <div class="control-group">
@@ -374,13 +396,13 @@
             }
         }
         
-        function previewSheet() {
+        function loadColumns() {
             const requestId = ++lastRequestId;
             const sheetUrl = document.getElementById('sheetUrl').value;
             const sheetName = document.getElementById('sheetName').value;
+            const headerRow = parseInt(document.getElementById('headerRow').value) || 1;
             
-            addOutput(`🔍 [req:${requestId}] Загружаю предпросмотр данных (${sheetName})...`, 'info');
-            addDebug(`req:${requestId} payload: ${JSON.stringify({ sheet_url: sheetUrl, sheet_name: sheetName })}`);
+            addOutput(`🔄 [req:${requestId}] Загружаю список колонок...`, 'info');
             
             fetch('/api/preview', {
                 method: 'POST',
@@ -389,7 +411,83 @@
                 },
                 body: JSON.stringify({
                     sheet_url: sheetUrl,
-                    sheet_name: sheetName
+                    sheet_name: sheetName,
+                    header_row: headerRow
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    addOutput(`❌ [req:${requestId}] Ошибка загрузки колонок: ${data.error}`, 'error');
+                    return;
+                }
+                
+                // Populate column dropdowns
+                const articleSelect = document.getElementById('articleColumn');
+                const nameSelect = document.getElementById('nameColumn');
+                const descriptionSelect = document.getElementById('descriptionColumn');
+                
+                // Clear existing options
+                articleSelect.innerHTML = '';
+                nameSelect.innerHTML = '';
+                descriptionSelect.innerHTML = '<option value="">(создать новую колонку)</option>';
+                
+                // Add available columns
+                data.headers.forEach(header => {
+                    if (header && header.trim()) {
+                        const option1 = document.createElement('option');
+                        option1.value = header.trim();
+                        option1.textContent = header.trim();
+                        articleSelect.appendChild(option1);
+                        
+                        const option2 = document.createElement('option');
+                        option2.value = header.trim();
+                        option2.textContent = header.trim();
+                        nameSelect.appendChild(option2);
+                        
+                        const option3 = document.createElement('option');
+                        option3.value = header.trim();
+                        option3.textContent = header.trim();
+                        descriptionSelect.appendChild(option3);
+                    }
+                });
+                
+                // Set defaults if available
+                if (data.headers.includes('Артикул')) {
+                    articleSelect.value = 'Артикул';
+                }
+                if (data.headers.includes('Наименование')) {
+                    nameSelect.value = 'Наименование';
+                }
+                if (data.headers.includes('Описание')) {
+                    descriptionSelect.value = 'Описание';
+                }
+                
+                addOutput(`✅ [req:${requestId}] Загружено колонок: ${data.headers.length}`, 'success');
+            })
+            .catch(error => {
+                addOutput(`❌ [req:${requestId}] Ошибка загрузки колонок: ${error.message}`, 'error');
+            });
+        }
+        
+        function previewSheet() {
+            const requestId = ++lastRequestId;
+            const sheetUrl = document.getElementById('sheetUrl').value;
+            const sheetName = document.getElementById('sheetName').value;
+            const headerRow = parseInt(document.getElementById('headerRow').value) || 1;
+            
+            addOutput(`🔍 [req:${requestId}] Загружаю предпросмотр данных (${sheetName})...`, 'info');
+            addDebug(`req:${requestId} payload: ${JSON.stringify({ sheet_url: sheetUrl, sheet_name: sheetName, header_row: headerRow })}`);
+            
+            fetch('/api/preview', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sheet_url: sheetUrl,
+                    sheet_name: sheetName,
+                    header_row: headerRow
                 })
             })
             .then(response => {
@@ -469,7 +567,10 @@
             const requestId = ++lastRequestId;
             const sheetUrl = document.getElementById('sheetUrl').value;
             const sheetName = document.getElementById('sheetName').value;
-            const columnName = document.getElementById('columnName').value;
+            const headerRow = parseInt(document.getElementById('headerRow').value) || 1;
+            const articleColumn = document.getElementById('articleColumn').value;
+            const nameColumn = document.getElementById('nameColumn').value;
+            const descriptionColumn = document.getElementById('descriptionColumn').value;
             const startLine = parseInt(document.getElementById('startLine').value);
             const endLine = parseInt(document.getElementById('endLine').value);
             const prompt = document.getElementById('prompt').value;
@@ -479,10 +580,17 @@
                 return;
             }
             
-            if (!sheetUrl || !sheetName || !columnName) {
-                addOutput('❌ Ошибка: Заполните все поля конфигурации Google Таблицы', 'error');
+            if (!sheetUrl || !sheetName) {
+                addOutput('❌ Ошибка: Заполните URL таблицы и название листа', 'error');
                 return;
             }
+            
+            if (!articleColumn || !nameColumn) {
+                addOutput('❌ Ошибка: Выберите колонки "Артикул" и "Наименование"', 'error');
+                return;
+            }
+            
+            // Empty descriptionColumn means "create new column" - that's allowed
             
             isGenerating = true;
             document.getElementById('startBtn').disabled = true;
@@ -497,7 +605,10 @@
             const payload = {
                 sheet_url: sheetUrl,
                 sheet_name: sheetName,
-                column_name: columnName,
+                header_row: headerRow,
+                article_column: articleColumn,
+                name_column: nameColumn,
+                description_column: descriptionColumn,
                 start_row: startLine,
                 end_row: endLine,
                 prompt: prompt,
