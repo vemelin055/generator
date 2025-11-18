@@ -28,11 +28,17 @@ from google.oauth2.service_account import Credentials
 from groq import Groq
 from groq import GroqError
 import requests
+from credentials_util import (
+    DEFAULT_CREDENTIALS_PATH,
+    ensure_google_credentials_file,
+)
 
 
 DEFAULT_SHEET_ID = "1f0FkNY39YjnaVTTMfUBaN5JlyDK5ZCzM1MLW_qWnCDI"
 DEFAULT_WORKSHEET = "КомТехАвто"
-SERVICE_ACCOUNT_FILE = "google_credentials.json"
+SERVICE_ACCOUNT_FILE = os.environ.get(
+    "GOOGLE_CREDENTIALS_FILE", str(DEFAULT_CREDENTIALS_PATH)
+)
 
 
 PROMPT_TEMPLATE = """Ты специалист по автозапчастям и маркетолог. Используй данные:
@@ -101,9 +107,11 @@ class DescriptionGenerator:
         return client
 
     def _init_sheet(self):
+        ensure_google_credentials_file(SERVICE_ACCOUNT_FILE)
         if not os.path.exists(SERVICE_ACCOUNT_FILE):
             raise FileNotFoundError(
-                f"Не найден '{SERVICE_ACCOUNT_FILE}'. Скачайте JSON сервисного аккаунта в корень проекта."
+                f"Не найден '{SERVICE_ACCOUNT_FILE}'. "
+                "Укажите GOOGLE_CREDENTIALS_JSON/GOOGLE_CREDENTIALS_BASE64 в Railway."
             )
 
         scopes = [

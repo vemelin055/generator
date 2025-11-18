@@ -11,6 +11,7 @@ import json
 import os
 import sys
 from datetime import datetime
+from credentials_util import ensure_google_credentials_file
 
 app = Flask(__name__)
 
@@ -205,7 +206,8 @@ def preview_sheet():
             "https://www.googleapis.com/auth/drive",
         ]
         
-        creds = Credentials.from_service_account_file("google_credentials.json", scopes=scopes)
+        credentials_file = ensure_google_credentials_file()
+        creds = Credentials.from_service_account_file(str(credentials_file), scopes=scopes)
         gc = gspread.authorize(creds)
         
         # Open the spreadsheet
@@ -240,5 +242,10 @@ def stream_logs():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))
-    use_debug = os.environ.get("FLASK_DEBUG", "1") == "1"
-    app.run(debug=use_debug, port=port, use_reloader=False)
+    use_debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(
+        debug=use_debug,
+        port=port,
+        host="0.0.0.0",
+        use_reloader=use_debug,
+    )
