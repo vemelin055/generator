@@ -231,12 +231,13 @@
         
         <div class="control-group">
             <label>📋 Выбор колонок:</label>
-            <label for="articleColumn" style="margin-top: 10px;">Артикул:</label>
+            <label for="articleColumn" style="margin-top: 10px;">Артикул (опционально):</label>
             <select id="articleColumn" style="width: 100%; padding: 10px; border: 2px solid #00ff00; background: #000; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 5px; margin-bottom: 10px;">
+                <option value="">(не использовать)</option>
                 <option value="Артикул">Артикул</option>
             </select>
             
-            <label for="nameColumn">Наименование:</label>
+            <label for="nameColumn">Наименование (обязательно):</label>
             <select id="nameColumn" style="width: 100%; padding: 10px; border: 2px solid #00ff00; background: #000; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 5px; margin-bottom: 10px;">
                 <option value="Наименование">Наименование</option>
             </select>
@@ -246,7 +247,7 @@
                 <option value="Описание">Описание</option>
                 <option value="">(создать новую колонку)</option>
             </select>
-            <small style="color: #00ff00; display: block; margin-top: 5px;">Если колонка отсутствует, выберите "(создать новую колонку)"</small>
+            <small style="color: #00ff00; display: block; margin-top: 5px;">Выберите хотя бы одну колонку (Наименование обязательно). Если колонка отсутствует, выберите "(создать новую колонку)"</small>
         </div>
         
         <div class="control-group">
@@ -428,7 +429,7 @@
                 const descriptionSelect = document.getElementById('descriptionColumn');
                 
                 // Clear existing options
-                articleSelect.innerHTML = '';
+                articleSelect.innerHTML = '<option value="">(не использовать)</option>';
                 nameSelect.innerHTML = '';
                 descriptionSelect.innerHTML = '<option value="">(создать новую колонку)</option>';
                 
@@ -585,11 +586,12 @@
                 return;
             }
             
-            if (!articleColumn || !nameColumn) {
-                addOutput('❌ Ошибка: Выберите колонки "Артикул" и "Наименование"', 'error');
+            if (!nameColumn) {
+                addOutput('❌ Ошибка: Выберите колонку "Наименование" (обязательно)', 'error');
                 return;
             }
             
+            // Empty articleColumn means "don't use article" - that's allowed
             // Empty descriptionColumn means "create new column" - that's allowed
             
             isGenerating = true;

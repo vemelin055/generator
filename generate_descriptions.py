@@ -41,7 +41,7 @@ SERVICE_ACCOUNT_FILE = os.environ.get(
 )
 
 
-PROMPT_TEMPLATE = """Ты специалист по автозапчастям и маркетолог. Используй данные:
+PROMPT_TEMPLATE_WITH_ARTICLE = """Ты специалист по автозапчастям и маркетолог. Используй данные:
 - Артикул: {article}
 - Наименование: {name}
 
@@ -52,10 +52,20 @@ PROMPT_TEMPLATE = """Ты специалист по автозапчастям �
 4. Объём 90–140 слов. Не добавляй произвольные цены и ссылки.
 """
 
+PROMPT_TEMPLATE_WITHOUT_ARTICLE = """Ты специалист по автозапчастям и маркетолог. Используй данные:
+- Наименование: {name}
+
+Задача:
+1. Напиши структурированное HTML-описание (h2/h3/p/ul/li/strong) на русском языке.
+2. Сделай акцент на назначении запчасти, преимуществах, совместимости и установке.
+3. Укажи ключевые выгоды.
+4. Объём 90–140 слов. Не добавляй произвольные цены и ссылки.
+"""
+
 
 @dataclass
 class SheetColumns:
-    article: int
+    article: Optional[int]
     name: int
     description: int
 
@@ -137,15 +147,17 @@ class DescriptionGenerator:
         header = self.sheet.row_values(self.header_row)
         header_map: Dict[str, int] = {name.strip(): idx + 1 for idx, name in enumerate(header)}
 
-        # Find article and name columns
-        article_col = header_map.get(self.article_column)
-        name_col = header_map.get(self.name_column)
+        # Find article and name columns (article is optional)
+        article_col = None
+        if self.article_column:
+            article_col = header_map.get(self.article_column)
+            if not article_col:
+                self.logger.warning(
+                    f"Колонка '{self.article_column}' не найдена в строке {self.header_row}. "
+                    "Продолжаю без артикула."
+                )
         
-        if not article_col:
-            raise RuntimeError(
-                f"Не найдена колонка '{self.article_column}' в строке {self.header_row}. "
-                "Проверьте заголовки или используйте кнопку 'ЗАГРУЗИТЬ КОЛОНКИ'."
-            )
+        name_col = header_map.get(self.name_column)
         if not name_col:
             raise RuntimeError(
                 f"Не найдена колонка '{self.name_column}' в строке {self.header_row}. "
@@ -175,7 +187,10 @@ class DescriptionGenerator:
         )
 
     def _build_prompt(self, article: str, name: str) -> str:
-        return PROMPT_TEMPLATE.format(article=article.strip(), name=name.strip())
+        if article and article.strip():
+            return PROMPT_TEMPLATE_WITH_ARTICLE.format(article=article.strip(), name=name.strip())
+        else:
+            return PROMPT_TEMPLATE_WITHOUT_ARTICLE.format(name=name.strip())
 
     def _is_russian_text(self, text: str) -> bool:
         return bool(re.search(r"[А-Яа-яЁё]", text or ""))
@@ -347,7 +362,10 @@ class DescriptionGenerator:
             if end_row and idx > end_row:
                 break
 
-            article = row[self.columns.article - 1].strip() if len(row) >= self.columns.article else ""
+            article = ""
+            if self.columns.article:
+                article = row[self.columns.article - 1].strip() if len(row) >= self.columns.article else ""
+            
             name = row[self.columns.name - 1].strip() if len(row) >= self.columns.name else ""
             description = (
                 row[self.columns.description - 1].strip()
@@ -355,13 +373,16 @@ class DescriptionGenerator:
                 else ""
             )
 
-            if not article or not name:
+            if not name:
                 continue
 
             if description and not self.force:
                 continue
 
-            self.logger.info("🔧 Строка %s | %s | %s", idx, article, name)
+            log_info = f"🔧 Строка {idx} | {name}"
+            if article:
+                log_info = f"🔧 Строка {idx} | {article} | {name}"
+            self.logger.info(log_info)
             request_start = time.perf_counter()
             try:
                 text = self._generate_description(article, name)
