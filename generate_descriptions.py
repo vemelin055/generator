@@ -168,12 +168,50 @@ class DescriptionGenerator:
         description_col = header_map.get(self.description_column) if self.description_column else None
         if not description_col:
             if not self.description_column or self.description_column == "":
-                # User selected "create new column" - add it after the last column
-                last_col_idx = len(header)
-                description_col = last_col_idx + 1
-                # Insert header in the header row
-                self.sheet.update_cell(self.header_row, description_col, "Описание")
-                self.logger.info(f"✅ Создана новая колонка 'Описание' в позиции {description_col}")
+                # User selected "create new column" - try to add it
+                try:
+                    # First, try to find an empty column in the header row
+                    empty_col = None
+                    for idx, col_name in enumerate(header, start=1):
+                        if not col_name or not col_name.strip():
+                            empty_col = idx
+                            break
+                    
+                    if empty_col:
+                        # Use existing empty column
+                        description_col = empty_col
+                        self.sheet.update_cell(self.header_row, description_col, "Описание")
+                        self.logger.info(f"✅ Использована пустая колонка 'Описание' в позиции {description_col}")
+                    else:
+                        # Try to add a new column using add_cols
+                        try:
+                            # Get current column count
+                            current_cols = len(header)
+                            # Add one column
+                            self.sheet.add_cols(1)
+                            description_col = current_cols + 1
+                            self.sheet.update_cell(self.header_row, description_col, "Описание")
+                            self.logger.info(f"✅ Создана новая колонка 'Описание' в позиции {description_col}")
+                        except Exception as add_col_error:
+                            # If add_cols fails (e.g., grid limits), raise a helpful error
+                            error_msg = str(add_col_error)
+                            if "exceeds grid limits" in error_msg or "max columns" in error_msg.lower():
+                                raise RuntimeError(
+                                    f"Таблица достигла лимита колонок и нельзя добавить новую. "
+                                    f"Пожалуйста, укажите название существующей колонки в поле 'Описание (колонка для записи)' "
+                                    f"или освободите место в таблице."
+                                )
+                            else:
+                                # For other errors, try the old method as fallback
+                                raise RuntimeError(
+                                    f"Не удалось создать новую колонку: {error_msg}. "
+                                    f"Попробуйте указать существующую колонку в настройках."
+                                )
+                except Exception as e:
+                    raise RuntimeError(
+                        f"Не удалось создать колонку 'Описание': {str(e)}. "
+                        f"Попробуйте указать существующую колонку в настройках."
+                    )
             else:
                 raise RuntimeError(
                     f"Не найдена колонка '{self.description_column}' в строке {self.header_row}. "
@@ -184,7 +222,7 @@ class DescriptionGenerator:
             article=article_col,
             name=name_col,
             description=description_col,
-        )
+            )
 
     def _build_prompt(self, article: str, name: str) -> str:
         if article and article.strip():
@@ -199,7 +237,7 @@ class DescriptionGenerator:
         prompt = self._build_prompt(article, name)
         models = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile"]
         last_error: Optional[Exception] = None
-
+        
         for model_idx, model_name in enumerate(models):
             self.logger.info("Попытка использования модели: %s", model_name)
 
@@ -365,13 +403,13 @@ class DescriptionGenerator:
             article = ""
             if self.columns.article:
                 article = row[self.columns.article - 1].strip() if len(row) >= self.columns.article else ""
-            
-            name = row[self.columns.name - 1].strip() if len(row) >= self.columns.name else ""
-            description = (
-                row[self.columns.description - 1].strip()
-                if len(row) >= self.columns.description
-                else ""
-            )
+                
+                name = row[self.columns.name - 1].strip() if len(row) >= self.columns.name else ""
+                description = (
+                    row[self.columns.description - 1].strip()
+                    if len(row) >= self.columns.description
+                    else ""
+                )
 
             if not name:
                 continue
