@@ -1,29 +1,10 @@
 # Railway Deployment Guide
 
-This project is ready to run on [Railway](https://railway.app/) with the
-provided `Procfile` (`web: gunicorn app:app --bind 0.0.0.0:${PORT:-5001}`).
+This project is ready to run on [Railway](https://railway.app/) using Docker.
+The Dockerfile is configured for production deployment with Gunicorn.
 Follow these steps to bootstrap the service and configure secrets.
 
-## 1. Create a Railway project
-
-1. Install the CLI: `npm i -g @railway/cli`
-2. Log in: `railway login`
-3. Inside the repository root run `railway init`
-4. Deploy from the CLI (`railway up`) or connect the GitHub repo in the UI
-
-## 2. Configure the start command
-
-Railway automatically uses `Procfile` if present. Alternatively set the
-start command manually to:
-
-```
-gunicorn app:app --bind 0.0.0.0:$PORT
-```
-
-`gunicorn` is listed in `requirements.txt`, so Railway installs it during
-the build phase.
-
-## 3. Environment variables
+## 2. Environment variables
 
 Create the following variables in the Railway dashboard (Project →
 Variables). All values are stored server-side and exposed to the runtime.
@@ -44,25 +25,29 @@ Variables). All values are stored server-side and exposed to the runtime.
 must be supplied. The application writes the JSON to
 `google_credentials.json` at runtime if it does not exist.
 
-## 4. Railway-specific behavior
+## 3. Railway Deployment
 
-- Flask now binds to `0.0.0.0` using the injected `PORT`, so Railway can
-  route traffic to the container.
-- When running outside the WSGI server (e.g., local `python app.py`),
-  `FLASK_DEBUG=1` automatically re-enables the debug reloader.
-- `credentials_util.ensure_google_credentials_file()` ensures the Google
-  service account is available both locally (from the JSON file) and on
-  Railway (via env vars).
+Railway will automatically detect and use the Dockerfile for deployment.
+The Dockerfile is configured to:
+- Use Python 3.11-slim base image
+- Set up a secure non-root user
+- Install dependencies from requirements.txt
+- Expose port 5000
+- Run with Gunicorn production server
 
-## 5. Local testing vs. Railway
+## 4. Local testing vs. Railway
 
 ```
-# Local dev
+# Local dev with Docker
+docker-compose up
+
+# Or build and run directly
+docker build -t description-generator .
+docker run -p 5000:5000 -e FLASK_DEBUG=0 description-generator
+
+# Local dev without Docker
 pip install -r requirements.txt
 FLASK_DEBUG=1 python app.py
-
-# Railway preview (same command the platform runs)
-gunicorn app:app --bind 0.0.0.0:5001
 ```
 
 If you use `.env` locally, Railway variables override those values.
@@ -71,4 +56,3 @@ If you use `.env` locally, Railway variables override those values.
 
 Once the variables are configured, each deploy automatically runs the
 Gunicorn server and the GUI will be available on the Railway-generated URL.
-

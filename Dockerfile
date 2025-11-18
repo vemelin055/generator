@@ -24,7 +24,6 @@ EXPOSE 5000
 
 # Set environment variables for production
 ENV FLASK_DEBUG=0
-ENV PORT=5000
 
-# Run the application with Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "app:app"]
+# Run the application with Gunicorn using PORT from environment or default to 5000
+CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 2 app:app
