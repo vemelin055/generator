@@ -219,7 +219,7 @@
         
         <div class="control-group">
             <label for="sheetUrl">📊 URL Google Таблицы:</label>
-            <input type="text" id="sheetUrl" value="1f0FkNY39YjnaVTTMfUBaN5JlyDK5ZCzM1MLW_qWnCDI">
+            <input type="text" id="sheetUrl" value="https://docs.google.com/spreadsheets/d/1Accfa2Ln4RuUchSVs-71Gd2yMlPBt_7hvLaJl6DwcPU/edit?gid=1970407067#gid=1970407067">
             
             <label for="sheetName">📝 Название листа:</label>
             <input type="text" id="sheetName" value="КомТехАвто">
@@ -235,16 +235,16 @@
         <div class="control-group">
             <label for="startLine">📈 Начальная строка:</label>
             <div class="slider-container">
-                <input type="range" id="startLineSlider" min="2" max="1000" value="13" step="1">
-                <input type="number" id="startLine" min="2" max="1000" value="13">
+                <input type="range" id="startLineSlider" min="2" max="1000" value="913" step="1">
+                <input type="number" id="startLine" min="2" max="1000" value="913">
             </div>
         </div>
         
         <div class="control-group">
             <label for="endLine">📉 Конечная строка:</label>
             <div class="slider-container">
-                <input type="range" id="endLineSlider" min="2" max="1000" value="100" step="1">
-                <input type="number" id="endLine" min="2" max="1000" value="100">
+                <input type="range" id="endLineSlider" min="2" max="1000" value="917" step="1">
+                <input type="number" id="endLine" min="2" max="1000" value="917">
             </div>
         </div>
         
@@ -282,6 +282,15 @@
                 <button onclick="closePreview()" style="margin-top: 15px; padding: 10px 20px; background: #440000; color: #00ff00; border: 1px solid #00ff00; cursor: pointer;">ЗАКРЫТЬ</button>
             </div>
         </div>
+        
+        <!-- Success Modal -->
+        <div id="successModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1001;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #000; border: 3px solid #00ff00; padding: 30px; border-radius: 10px; max-width: 500px; text-align: center; box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);">
+                <h2 style="color: #00ff00; margin-bottom: 20px; font-size: 2em;">✅ УСПЕШНО!</h2>
+                <div id="successContent" style="color: #00ff00; font-family: 'Courier New', monospace; margin-bottom: 20px; font-size: 1.2em;"></div>
+                <button onclick="closeSuccessModal()" style="padding: 12px 30px; background: #004400; color: #00ff00; border: 2px solid #00ff00; cursor: pointer; font-size: 1.1em; font-weight: bold; border-radius: 5px;">ОК</button>
+            </div>
+        </div>
     </div>
     
     <div class="log-panel" id="logPanel">
@@ -299,6 +308,7 @@
         let processId = null;
         let logPanelCollapsed = false;
         let lastRequestId = 0;
+        let generationStartTime = null;
         
         // Sync sliders and number inputs
         document.getElementById('startLineSlider').addEventListener('input', function() {
@@ -430,6 +440,29 @@
             document.getElementById('previewModal').style.display = 'none';
         }
         
+        function closeSuccessModal() {
+            document.getElementById('successModal').style.display = 'none';
+        }
+        
+        function formatDuration(seconds) {
+            if (seconds < 60) {
+                return `${seconds.toFixed(1)} сек`;
+            }
+            const mins = Math.floor(seconds / 60);
+            const secs = (seconds % 60).toFixed(1);
+            return `${mins} мин ${secs} сек`;
+        }
+        
+        function showSuccessModal(processedCount, duration) {
+            const modal = document.getElementById('successModal');
+            const content = document.getElementById('successContent');
+            content.innerHTML = `
+                <p>✅ Обработано строк: <strong>${processedCount}</strong></p>
+                <p>⏱️ Время обработки: <strong>${formatDuration(duration)}</strong></p>
+            `;
+            modal.style.display = 'block';
+        }
+        
         function startGeneration() {
             if (isGenerating) return;
             
@@ -455,7 +488,10 @@
             document.getElementById('startBtn').disabled = true;
             document.getElementById('stopBtn').disabled = false;
             
-            addOutput(`🔧 [req:${requestId}] Начинаю генерацию описаний...`, 'info');
+            // Start timing
+            generationStartTime = Date.now();
+            const startTimeStr = new Date().toLocaleTimeString('ru-RU');
+            addOutput(`🔧 [req:${requestId}] Начинаю генерацию описаний... [${startTimeStr}]`, 'info');
             updateStatus('🟡 Генерация в процессе...', true);
             updateProgress(0);
             const payload = {
@@ -515,10 +551,29 @@
                     
                     // Check for completion
                     if (data.message.includes('Обработано строк') || data.message.includes('completed')) {
+                        const endTime = Date.now();
+                        const duration = (endTime - generationStartTime) / 1000; // in seconds
+                        const endTimeStr = new Date().toLocaleTimeString('ru-RU');
+                        
+                        // Extract processed count from message
+                        const countMatch = data.message.match(/Обработано строк[:\s]+(\d+)/i) || 
+                                         data.message.match(/processed[:\s]+(\d+)/i) ||
+                                         data.message.match(/(\d+)/);
+                        const processedCount = countMatch ? countMatch[1] : '?';
+                        
+                        addOutput(`⏱️ [req:${requestId}] Время обработки: ${formatDuration(duration)} [${endTimeStr}]`, 'success');
+                        addOutput(`✅ [req:${requestId}] Генерация завершена успешно!`, 'success');
+                        
+                        // Reset timing
+                        generationStartTime = null;
+                        
                         stopGeneration();
                         updateStatus('🟢 Готов к работе');
                         updateProgress(100);
                         eventSource.close();
+                        
+                        // Show success modal
+                        showSuccessModal(processedCount, duration);
                     }
                     
                     // Check for errors
@@ -550,6 +605,13 @@
             isGenerating = false;
             document.getElementById('startBtn').disabled = false;
             document.getElementById('stopBtn').disabled = true;
+            
+            // Reset timing if generation was stopped manually
+            if (generationStartTime) {
+                const duration = (Date.now() - generationStartTime) / 1000;
+                addOutput(`⏹️ Генерация остановлена. Время работы: ${formatDuration(duration)}`, 'warning');
+                generationStartTime = null;
+            }
             
             // Close event source if exists
             if (window.currentEventSource) {
@@ -589,6 +651,12 @@
         document.getElementById('previewModal').addEventListener('click', function(e) {
             if (e.target === this) {
                 closePreview();
+            }
+        });
+        
+        document.getElementById('successModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeSuccessModal();
             }
         });
     </script>
