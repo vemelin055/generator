@@ -4,10 +4,23 @@ This project is ready to run on [Railway](https://railway.app/) using Docker.
 The Dockerfile is configured for production deployment with Gunicorn.
 Follow these steps to bootstrap the service and configure secrets.
 
+## 1. Quick Start
+
+1. Connect your GitHub repository to Railway
+2. Railway will auto-detect the Dockerfile
+3. **IMPORTANT**: Set the required environment variables (see below)
+4. Deploy!
+
 ## 2. Environment variables
 
 Create the following variables in the Railway dashboard (Project →
 Variables). All values are stored server-side and exposed to the runtime.
+
+**⚠️ CRITICAL**: You MUST set `GOOGLE_CREDENTIALS_JSON` or `GOOGLE_CREDENTIALS_BASE64` 
+or you will see this error:
+```
+Не найден файл google_credentials.json. Установите переменную окружения GOOGLE_CREDENTIALS_JSON или GOOGLE_CREDENTIALS_BASE64.
+```
 
 | Variable | Required | Description |
 | --- | --- | --- |

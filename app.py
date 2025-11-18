@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Flask server for the Description Generator GUI
 """
