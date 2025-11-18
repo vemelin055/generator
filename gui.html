@@ -232,22 +232,14 @@
         <div class="control-group">
             <label>📋 Выбор колонок:</label>
             <label for="articleColumn" style="margin-top: 10px;">Артикул (опционально):</label>
-            <select id="articleColumn" style="width: 100%; padding: 10px; border: 2px solid #00ff00; background: #000; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 5px; margin-bottom: 10px;">
-                <option value="">(не использовать)</option>
-                <option value="Артикул">Артикул</option>
-            </select>
+            <input type="text" id="articleColumn" value="Артикул" placeholder="(не использовать)" style="width: 100%; padding: 10px; border: 2px solid #00ff00; background: #000; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 5px; margin-bottom: 10px;">
             
             <label for="nameColumn">Наименование (обязательно):</label>
-            <select id="nameColumn" style="width: 100%; padding: 10px; border: 2px solid #00ff00; background: #000; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 5px; margin-bottom: 10px;">
-                <option value="Наименование">Наименование</option>
-            </select>
+            <input type="text" id="nameColumn" value="Наименование" placeholder="Наименование" style="width: 100%; padding: 10px; border: 2px solid #00ff00; background: #000; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 5px; margin-bottom: 10px;">
             
             <label for="descriptionColumn">Описание (колонка для записи):</label>
-            <select id="descriptionColumn" style="width: 100%; padding: 10px; border: 2px solid #00ff00; background: #000; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 5px; margin-bottom: 10px;">
-                <option value="Описание">Описание</option>
-                <option value="">(создать новую колонку)</option>
-            </select>
-            <small style="color: #00ff00; display: block; margin-top: 5px;">Выберите хотя бы одну колонку (Наименование обязательно). Если колонка отсутствует, выберите "(создать новую колонку)"</small>
+            <input type="text" id="descriptionColumn" value="Описание" placeholder="(создать новую колонку)" style="width: 100%; padding: 10px; border: 2px solid #00ff00; background: #000; color: #00ff00; font-family: 'Courier New', monospace; border-radius: 5px; margin-bottom: 10px;">
+            <small style="color: #00ff00; display: block; margin-top: 5px;">Введите названия колонок. Оставьте Артикул пустым, если не нужен. Оставьте Описание пустым, чтобы создать новую колонку.</small>
         </div>
         
         <div class="control-group">
@@ -332,6 +324,7 @@
         let logPanelCollapsed = false;
         let lastRequestId = 0;
         let generationStartTime = null;
+        let processedCount = 0;
         
         // Sync sliders and number inputs
         document.getElementById('startLineSlider').addEventListener('input', function() {
@@ -423,45 +416,29 @@
                     return;
                 }
                 
-                // Populate column dropdowns
-                const articleSelect = document.getElementById('articleColumn');
-                const nameSelect = document.getElementById('nameColumn');
-                const descriptionSelect = document.getElementById('descriptionColumn');
+                // Populate column text inputs
+                const articleInput = document.getElementById('articleColumn');
+                const nameInput = document.getElementById('nameColumn');
+                const descriptionInput = document.getElementById('descriptionColumn');
                 
-                // Clear existing options
-                articleSelect.innerHTML = '<option value="">(не использовать)</option>';
-                nameSelect.innerHTML = '';
-                descriptionSelect.innerHTML = '<option value="">(создать новую колонку)</option>';
-                
-                // Add available columns
-                data.headers.forEach(header => {
-                    if (header && header.trim()) {
-                        const option1 = document.createElement('option');
-                        option1.value = header.trim();
-                        option1.textContent = header.trim();
-                        articleSelect.appendChild(option1);
-                        
-                        const option2 = document.createElement('option');
-                        option2.value = header.trim();
-                        option2.textContent = header.trim();
-                        nameSelect.appendChild(option2);
-                        
-                        const option3 = document.createElement('option');
-                        option3.value = header.trim();
-                        option3.textContent = header.trim();
-                        descriptionSelect.appendChild(option3);
-                    }
-                });
-                
-                // Set defaults if available
+                // Set defaults if available in headers
                 if (data.headers.includes('Артикул')) {
-                    articleSelect.value = 'Артикул';
+                    articleInput.value = 'Артикул';
+                } else {
+                    articleInput.value = '';
                 }
+                
                 if (data.headers.includes('Наименование')) {
-                    nameSelect.value = 'Наименование';
+                    nameInput.value = 'Наименование';
+                } else if (data.headers.length > 0) {
+                    // Use first available column as default for name
+                    nameInput.value = data.headers[0].trim() || 'Наименование';
                 }
+                
                 if (data.headers.includes('Описание')) {
-                    descriptionSelect.value = 'Описание';
+                    descriptionInput.value = 'Описание';
+                } else {
+                    descriptionInput.value = '';
                 }
                 
                 addOutput(`✅ [req:${requestId}] Загружено колонок: ${data.headers.length}`, 'success');
@@ -598,8 +575,9 @@
             document.getElementById('startBtn').disabled = true;
             document.getElementById('stopBtn').disabled = false;
             
-            // Start timing
+            // Start timing and reset counters
             generationStartTime = Date.now();
+            processedCount = 0;
             const startTimeStr = new Date().toLocaleTimeString('ru-RU');
             addOutput(`🔧 [req:${requestId}] Начинаю генерацию описаний... [${startTimeStr}]`, 'info');
             updateStatus('🟡 Генерация в процессе...', true);
@@ -654,6 +632,11 @@
                     
                     addOutput(data.message, data.type || 'info');
                     
+                    // Track processed count
+                    if (data.message.includes('✅ Записано') || data.message.includes('✅ Обработано')) {
+                        processedCount++;
+                    }
+                    
                     // Update progress based on log messages
                     const progressMatch = data.message.match(/Строка (\d+)/) || data.message.match(/row (\d+)/i);
                     if (progressMatch) {
@@ -662,17 +645,57 @@
                         updateProgress(Math.min(100, progress));
                     }
                     
-                    // Check for completion
-                    if (data.message.includes('Обработано строк') || data.message.includes('completed')) {
+                    // Check for completion - multiple patterns
+                    const completionPatterns = [
+                        /Обработано строк[:\s]+(\d+)/i,
+                        /processed[:\s]+(\d+)/i,
+                        /Генерация завершена/i,
+                        /завершена/i,
+                        /completed/i
+                    ];
+                    
+                    let isCompleted = false;
+                    let extractedCount = null;
+                    
+                    for (const pattern of completionPatterns) {
+                        const match = data.message.match(pattern);
+                        if (match) {
+                            isCompleted = true;
+                            if (match[1]) {
+                                extractedCount = parseInt(match[1]);
+                            }
+                            break;
+                        }
+                    }
+                    
+                    // Also check if message contains completion indicators
+                    if (!isCompleted) {
+                        isCompleted = data.message.includes('✅ Генерация завершена') || 
+                                     data.message.includes('✅ Обработано строк') ||
+                                     (data.type === 'success' && data.message.includes('завершена'));
+                    }
+                    
+                    if (isCompleted) {
                         const endTime = Date.now();
                         const duration = (endTime - generationStartTime) / 1000; // in seconds
                         const endTimeStr = new Date().toLocaleTimeString('ru-RU');
                         
-                        // Extract processed count from message
-                        const countMatch = data.message.match(/Обработано строк[:\s]+(\d+)/i) || 
-                                         data.message.match(/processed[:\s]+(\d+)/i) ||
-                                         data.message.match(/(\d+)/);
-                        const processedCount = countMatch ? countMatch[1] : '?';
+                        // Determine final count: use extracted from message, or tracked count, or '?'
+                        let finalCount = extractedCount;
+                        if (!finalCount) {
+                            // Try to extract from message
+                            const countMatch = data.message.match(/(\d+)/);
+                            if (countMatch) {
+                                finalCount = parseInt(countMatch[1]);
+                            }
+                        }
+                        // Use tracked count if message doesn't have it
+                        if (!finalCount && processedCount > 0) {
+                            finalCount = processedCount;
+                        }
+                        if (!finalCount) {
+                            finalCount = '?';
+                        }
                         
                         addOutput(`⏱️ [req:${requestId}] Время обработки: ${formatDuration(duration)} [${endTimeStr}]`, 'success');
                         addOutput(`✅ [req:${requestId}] Генерация завершена успешно!`, 'success');
@@ -685,8 +708,8 @@
                         updateProgress(100);
                         eventSource.close();
                         
-                        // Show success modal
-                        showSuccessModal(processedCount, duration);
+                        // Show success modal for all sheets (КомТехАвто, Мавико, ГП)
+                        showSuccessModal(finalCount, duration);
                     }
                     
                     // Check for errors
