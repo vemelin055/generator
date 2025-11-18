@@ -16,9 +16,14 @@ from credentials_util import ensure_google_credentials_file
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production-' + os.urandom(24).hex())
 
-# Admin credentials
-ADMIN_EMAIL = 'vemelin055@gmail.com'
-ADMIN_PASSWORD = 'Emelin12'
+# Admin credentials from environment variables
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'vemelin055@gmail.com')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Emelin12')
+
+# Warn if using default credentials in production
+if ADMIN_EMAIL == 'vemelin055@gmail.com' and ADMIN_PASSWORD == 'Emelin12' and os.environ.get('RAILWAY_ENVIRONMENT'):
+    import warnings
+    warnings.warn("Using default admin credentials in production! Set ADMIN_EMAIL and ADMIN_PASSWORD environment variables.")
 
 # Global variables for process management
 process_queue = queue.Queue()

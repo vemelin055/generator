@@ -26,6 +26,9 @@ or you will see this error:
 | --- | --- | --- |
 | `PORT` | no | Railway injects this automatically; only override locally |
 | `FLASK_DEBUG` | no | Set to `0` in production (default). `1` enables debug logs |
+| `SECRET_KEY` | recommended | Secret key for Flask sessions (auto-generated if not set) |
+| `ADMIN_EMAIL` | recommended | Admin login email (default: vemelin055@gmail.com) |
+| `ADMIN_PASSWORD` | recommended | Admin login password (default: Emelin12) |
 | `GROQ_API_KEY` | yes | API key for Groq models (or use legacy `QROQ_TOKEN`) |
 | `OPENROUTER_API_KEY` | optional | Enables DeepSeek fallback via OpenRouter |
 | `OPENROUTER_REFERER` | optional | Custom referer header for OpenRouter |
@@ -37,6 +40,13 @@ or you will see this error:
 \* Either `GOOGLE_CREDENTIALS_JSON` **or** `GOOGLE_CREDENTIALS_BASE64`
 must be supplied. The application writes the JSON to
 `google_credentials.json` at runtime if it does not exist.
+
+**🔒 Security Note**: For production deployments, it's **strongly recommended** to set:
+- `ADMIN_EMAIL` - Your admin email address
+- `ADMIN_PASSWORD` - A strong, unique password
+- `SECRET_KEY` - A random secret key for session encryption
+
+If not set, default credentials will be used (not secure for production).
 
 ## 3. Railway Deployment
 
