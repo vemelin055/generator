@@ -2,7 +2,7 @@
 Flask server for the Description Generator GUI
 """
 
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for
 import subprocess
 import threading
 import queue
@@ -10,14 +10,31 @@ import json
 import os
 import sys
 from datetime import datetime
+from functools import wraps
 from credentials_util import ensure_google_credentials_file
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production-' + os.urandom(24).hex())
+
+# Admin credentials
+ADMIN_EMAIL = 'vemelin055@gmail.com'
+ADMIN_PASSWORD = 'Emelin12'
 
 # Global variables for process management
 process_queue = queue.Queue()
 current_process = None
 process_thread = None
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            # Check if it's an API request
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'Требуется авторизация', 'redirect': '/login'}), 401
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def run_generation(sheet_id, sheet_name, header_row, article_column, name_column, description_column, start_row, end_row, prompt_text, force=False, dry_run=False):
     """Run the description generation script with given parameters"""
@@ -91,11 +108,34 @@ except Exception as e:
         except:
             pass
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        
+        if email == ADMIN_EMAIL and password == ADMIN_PASSWORD:
+            session['logged_in'] = True
+            session['email'] = email
+            return jsonify({'success': True, 'redirect': url_for('index')})
+        else:
+            return jsonify({'success': False, 'error': 'Неверный email или пароль'}), 401
+    
+    # GET request - show login page
+    return open('login.html', 'r', encoding='utf-8').read()
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
 @app.route('/')
+@login_required
 def index():
-    return open('gui.html', 'r').read()
+    return open('gui.html', 'r', encoding='utf-8').read()
 
 @app.route('/api/start', methods=['POST'])
+@login_required
 def start_generation():
     global process_thread
     
@@ -156,6 +196,7 @@ def start_generation():
     return jsonify({'status': 'started', 'start_row': start_row, 'end_row': end_row})
 
 @app.route('/api/stop', methods=['POST'])
+@login_required
 def stop_generation():
     global process_thread
     
@@ -168,12 +209,14 @@ def stop_generation():
     return jsonify({'status': 'no process running'})
 
 @app.route('/api/status')
+@login_required
 def status():
     return jsonify({
         'active': process_thread.is_alive() if process_thread else False
     })
 
 @app.route('/api/preview', methods=['POST'])
+@login_required
 def preview_sheet():
     try:
         data = request.json
@@ -228,6 +271,7 @@ def preview_sheet():
         return jsonify({'error': f'Ошибка загрузки данных: {str(e)}'}), 500
 
 @app.route('/api/logs')
+@login_required
 def stream_logs():
     def generate():
         while True:
