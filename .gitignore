@@ -1,0 +1,8 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+google_credentials.json
+temp_generate.py

@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор Описаний - Retro UI</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+            color: #00ff00;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #00ff00;
+            border-radius: 5px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #00ff00;
+        }
+        
+        input[type="number"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #00ff00;
+            background: #000;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        input[type="range"] {
+            flex: 1;
+            height: 5px;
+            background: #000;
+            border: 1px solid #00ff00;
+            border-radius: 5px;
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #00ff00;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: 2px solid #00ff00;
+            background: #000;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+        
+        button:hover {
+            background: #00ff00;
+            color: #000;
+            box-shadow: 0 0 15px #00ff00;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        #startBtn {
+            background: #004400;
+        }
+        
+        #stopBtn {
+            background: #440000;
+        }
+        
+        .log-panel {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            width: 340px;
+            max-height: 60vh;
+            background: rgba(0, 0, 0, 0.92);
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+            overflow: hidden;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            z-index: 999;
+        }
+        
+        .log-panel.collapsed {
+            transform: translateY(calc(100% - 46px));
+            opacity: 0.7;
+        }
+        
+        .log-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 15px;
+            background: rgba(0, 255, 0, 0.15);
+            border-bottom: 1px solid #00ff00;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        
+        .log-panel-body {
+            padding: 12px 15px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .output-line {
+            margin: 2px 0;
+            white-space: pre-wrap;
+        }
+        
+        .success { color: #00ff00; }
+        .error { color: #ff0000; }
+        .warning { color: #ffff00; }
+        .info { color: #00ffff; }
+        .debug { color: #ffa500; }
+        
+        .progress-container {
+            margin-top: 10px;
+            background: #000;
+            border: 1px solid #00ff00;
+            border-radius: 5px;
+            height: 20px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: #00ff00;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .status-bar {
+            margin-top: 10px;
+            padding: 5px;
+            background: #000;
+            border: 1px solid #00ff00;
+            border-radius: 3px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .blink {
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 ГЕНЕРАТОР ОПИСАНИЙ АВТОЗАПЧАСТЕЙ</h1>
+        
+        <div class="control-group">
+            <label for="sheetUrl">📊 URL Google Таблицы:</label>
+            <input type="text" id="sheetUrl" value="1f0FkNY39YjnaVTTMfUBaN5JlyDK5ZCzM1MLW_qWnCDI">
+            
+            <label for="sheetName">📝 Название листа:</label>
+            <input type="text" id="sheetName" value="КомТехАвто">
+            
+            <label for="columnName">📋 Колонка для редактирования:</label>
+            <input type="text" id="columnName" value="Описание">
+        </div>
+        
+        <div class="control-group">
+            <button onclick="previewSheet()">👁️ ПРЕДПРОСМОТР ДАННЫХ</button>
+        </div>
+        
+        <div class="control-group">
+            <label for="startLine">📈 Начальная строка:</label>
+            <div class="slider-container">
+                <input type="range" id="startLineSlider" min="2" max="1000" value="13" step="1">
+                <input type="number" id="startLine" min="2" max="1000" value="13">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label for="endLine">📉 Конечная строка:</label>
+            <div class="slider-container">
+                <input type="range" id="endLineSlider" min="2" max="1000" value="100" step="1">
+                <input type="number" id="endLine" min="2" max="1000" value="100">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label for="prompt">📝 Промпт:</label>
+            <textarea id="prompt">Ты специалист по автозапчастям и маркетолог. Используй данные:
+- Артикул: {article}
+- Наименование: {name}
+
+Задача:
+1. Напиши структурированное HTML-описание (h2/h3/p/ul/li/strong) на русском языке.
+2. Сделай акцент на назначении запчасти, преимуществах, совместимости и установке.
+3. Укажи артикул и ключевые выгоды.
+4. Объём 90–140 слов. Не добавляй произвольные цены и ссылки.</textarea>
+        </div>
+        
+        <div class="button-group">
+            <button id="startBtn" onclick="startGeneration()">▶️ НАЧАТЬ ГЕНЕРАЦИЮ</button>
+            <button id="stopBtn" onclick="stopGeneration()" disabled>⏹️ ОСТАНОВИТЬ</button>
+        </div>
+        
+        <div class="status-bar">
+            <span id="status">🟢 Готов к работе</span>
+        </div>
+        
+        <div class="progress-container">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <!-- Preview Modal -->
+        <div id="previewModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #000; border: 2px solid #00ff00; padding: 20px; border-radius: 10px; max-width: 90%; max-height: 80%; overflow: auto;">
+                <h3 style="color: #00ff00; margin-bottom: 15px;">📊 ПРЕДПРОСМОТР ДАННЫХ</h3>
+                <div id="previewContent" style="color: #00ff00; font-family: 'Courier New', monospace;"></div>
+                <button onclick="closePreview()" style="margin-top: 15px; padding: 10px 20px; background: #440000; color: #00ff00; border: 1px solid #00ff00; cursor: pointer;">ЗАКРЫТЬ</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="log-panel" id="logPanel">
+        <div class="log-panel-header" onclick="toggleLogPanel()">
+            <span>📜 Логи</span>
+            <span id="logToggleIcon">▾</span>
+        </div>
+        <div class="log-panel-body" id="output">
+            <div class="output-line info">🚀 Система готова. Нажмите НАЧАТЬ для начала генерации...</div>
+        </div>
+    </div>
+
+    <script>
+        let isGenerating = false;
+        let processId = null;
+        let logPanelCollapsed = false;
+        let lastRequestId = 0;
+        
+        // Sync sliders and number inputs
+        document.getElementById('startLineSlider').addEventListener('input', function() {
+            document.getElementById('startLine').value = this.value;
+        });
+        
+        document.getElementById('startLine').addEventListener('input', function() {
+            document.getElementById('startLineSlider').value = this.value;
+        });
+        
+        document.getElementById('endLineSlider').addEventListener('input', function() {
+            document.getElementById('endLine').value = this.value;
+        });
+        
+        document.getElementById('endLine').addEventListener('input', function() {
+            document.getElementById('endLineSlider').value = this.value;
+        });
+        
+        function getTimestamp() {
+            return new Date().toLocaleTimeString('ru-RU', { hour12: false });
+        }
+        
+        function addOutput(message, type = 'info') {
+            const output = document.getElementById('output');
+            const line = document.createElement('div');
+            line.className = `output-line ${type}`;
+            line.textContent = `[${getTimestamp()}][${type.toUpperCase()}] ${message}`;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+            if (type === 'error') {
+                console.error(message);
+            } else if (type === 'warning') {
+                console.warn(message);
+            } else {
+                console.log(message);
+            }
+        }
+        
+        function addDebug(message) {
+            addOutput(message, 'debug');
+        }
+        
+        function updateStatus(message, isBlinking = false) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = isBlinking ? 'blink' : '';
+        }
+        
+        function updateProgress(percentage) {
+            document.getElementById('progressBar').style.width = percentage + '%';
+        }
+        
+        function toggleLogPanel() {
+            const panel = document.getElementById('logPanel');
+            const icon = document.getElementById('logToggleIcon');
+            logPanelCollapsed = !logPanelCollapsed;
+            if (logPanelCollapsed) {
+                panel.classList.add('collapsed');
+                icon.textContent = '▴';
+            } else {
+                panel.classList.remove('collapsed');
+                icon.textContent = '▾';
+            }
+        }
+        
+        function previewSheet() {
+            const requestId = ++lastRequestId;
+            const sheetUrl = document.getElementById('sheetUrl').value;
+            const sheetName = document.getElementById('sheetName').value;
+            
+            addOutput(`🔍 [req:${requestId}] Загружаю предпросмотр данных (${sheetName})...`, 'info');
+            addDebug(`req:${requestId} payload: ${JSON.stringify({ sheet_url: sheetUrl, sheet_name: sheetName })}`);
+            
+            fetch('/api/preview', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sheet_url: sheetUrl,
+                    sheet_name: sheetName
+                })
+            })
+            .then(response => {
+                addDebug(`req:${requestId} /api/preview status ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    addOutput(`❌ [req:${requestId}] Ошибка предпросмотра: ${data.error}`, 'error');
+                    return;
+                }
+                
+                const previewContent = document.getElementById('previewContent');
+                const modal = document.getElementById('previewModal');
+                
+                // Format the preview data as a table
+                let html = '<table style="width: 100%; border-collapse: collapse; color: #00ff00;">';
+                
+                // Add headers
+                html += '<tr>';
+                data.headers.forEach(header => {
+                    html += `<th style="border: 1px solid #00ff00; padding: 8px; text-align: left;">${header}</th>`;
+                });
+                html += '</tr>';
+                
+                // Add sample rows (first 5 rows)
+                data.rows.slice(0, 5).forEach(row => {
+                    html += '<tr>';
+                    row.forEach(cell => {
+                        html += `<td style="border: 1px solid #00ff00; padding: 8px;">${cell || ''}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                
+                html += '</table>';
+                html += `<p style="margin-top: 10px;">📋 Всего строк: ${data.rows.length}</p>`;
+                
+                previewContent.innerHTML = html;
+                modal.style.display = 'block';
+                addOutput(`✅ [req:${requestId}] Предпросмотр данных загружен`, 'success');
+            })
+            .catch(error => {
+                addOutput(`❌ [req:${requestId}] Ошибка загрузки предпросмотра: ${error.message}`, 'error');
+            });
+        }
+        
+        function closePreview() {
+            document.getElementById('previewModal').style.display = 'none';
+        }
+        
+        function startGeneration() {
+            if (isGenerating) return;
+            
+            const requestId = ++lastRequestId;
+            const sheetUrl = document.getElementById('sheetUrl').value;
+            const sheetName = document.getElementById('sheetName').value;
+            const columnName = document.getElementById('columnName').value;
+            const startLine = parseInt(document.getElementById('startLine').value);
+            const endLine = parseInt(document.getElementById('endLine').value);
+            const prompt = document.getElementById('prompt').value;
+            
+            if (startLine >= endLine) {
+                addOutput('❌ Ошибка: Начальная строка должна быть меньше конечной', 'error');
+                return;
+            }
+            
+            if (!sheetUrl || !sheetName || !columnName) {
+                addOutput('❌ Ошибка: Заполните все поля конфигурации Google Таблицы', 'error');
+                return;
+            }
+            
+            isGenerating = true;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            
+            addOutput(`🔧 [req:${requestId}] Начинаю генерацию описаний...`, 'info');
+            updateStatus('🟡 Генерация в процессе...', true);
+            updateProgress(0);
+            const payload = {
+                sheet_url: sheetUrl,
+                sheet_name: sheetName,
+                column_name: columnName,
+                start_row: startLine,
+                end_row: endLine,
+                prompt: prompt,
+                force: false,
+                dry_run: false
+            };
+            addDebug(`req:${requestId} payload: ${JSON.stringify(payload)}`);
+            
+            // Call backend API to start generation
+            fetch('/api/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => {
+                addDebug(`req:${requestId} /api/start status ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    addOutput(`❌ [req:${requestId}] ${data.error}`, 'error');
+                    stopGeneration();
+                    return;
+                }
+                
+                addOutput(`✅ [req:${requestId}] Начинаю обработку с строки ${data.start_row} до ${data.end_row}`, 'success');
+                
+                // Set up log streaming
+                const eventSource = new EventSource('/api/logs');
+                addDebug(`req:${requestId} EventSource открывается...`);
+                
+                eventSource.onopen = function() {
+                    addDebug(`req:${requestId} EventSource открыт`);
+                };
+                
+                eventSource.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    if (data.keep_alive) return;
+                    
+                    addOutput(data.message, data.type || 'info');
+                    
+                    // Update progress based on log messages
+                    const progressMatch = data.message.match(/Строка (\d+)/) || data.message.match(/row (\d+)/i);
+                    if (progressMatch) {
+                        const currentRow = parseInt(progressMatch[1]);
+                        const progress = ((currentRow - startLine) / (endLine - startLine)) * 100;
+                        updateProgress(Math.min(100, progress));
+                    }
+                    
+                    // Check for completion
+                    if (data.message.includes('Обработано строк') || data.message.includes('completed')) {
+                        stopGeneration();
+                        updateStatus('🟢 Готов к работе');
+                        updateProgress(100);
+                        eventSource.close();
+                    }
+                    
+                    // Check for errors
+                    if (data.message.includes('❌') || data.type === 'error') {
+                        updateStatus('🔴 Ошибка');
+                        addDebug(`req:${requestId} EventSource закрыт из-за ошибки лога`);
+                        eventSource.close();
+                    }
+                };
+                
+                eventSource.onerror = function() {
+                    addOutput(`❌ [req:${requestId}] Ошибка соединения с сервером (EventSource)`, 'error');
+                    addDebug(`req:${requestId} EventSource onerror`);
+                    stopGeneration();
+                };
+                
+                // Store event source for cleanup
+                window.currentEventSource = eventSource;
+            })
+            .catch(error => {
+                addOutput(`❌ [req:${requestId}] Ошибка запуска: ${error.message}`, 'error');
+                stopGeneration();
+            });
+        }
+        
+        function stopGeneration() {
+            if (!isGenerating) return;
+            
+            isGenerating = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            
+            // Close event source if exists
+            if (window.currentEventSource) {
+                window.currentEventSource.close();
+                window.currentEventSource = null;
+            }
+            
+            // Call backend API to stop generation
+            const requestId = ++lastRequestId;
+            fetch('/api/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                addDebug(`req:${requestId} /api/stop status ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                addOutput(`⏹️ [req:${requestId}] Генерация остановлена пользователем`, 'warning');
+                updateStatus('🟢 Готов к работе');
+                updateProgress(0);
+            })
+            .catch(error => {
+                addOutput(`❌ [req:${requestId}] Ошибка остановки: ${error.message}`, 'error');
+                updateStatus('🟢 Готов к работе');
+                updateProgress(0);
+            });
+        }
+        
+        // Initialize
+        addOutput('🌐 Генератор Описаний v1.0 - Retro Edition', 'info');
+        addOutput('📊 Готов к подключению к серверу', 'info');
+        
+        // Close modal on outside click
+        document.getElementById('previewModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closePreview();
+            }
+        });
+    </script>
+</body>
+</html>
