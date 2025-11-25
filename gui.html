@@ -831,7 +831,77 @@
             });
         }
         
+        // Save form data to localStorage
+        function saveFormData() {
+            const formData = {
+                sheetUrl: document.getElementById('sheetUrl').value,
+                sheetName: document.getElementById('sheetName').value,
+                headerRow: document.getElementById('headerRow').value,
+                articleColumn: document.getElementById('articleColumn').value,
+                nameColumn: document.getElementById('nameColumn').value,
+                descriptionColumn: document.getElementById('descriptionColumn').value,
+                startLine: document.getElementById('startLine').value,
+                endLine: document.getElementById('endLine').value,
+                prompt: document.getElementById('prompt').value
+            };
+            try {
+                localStorage.setItem('descriptionGeneratorFormData', JSON.stringify(formData));
+            } catch (e) {
+                console.warn('Не удалось сохранить данные в localStorage:', e);
+            }
+        }
+        
+        // Load form data from localStorage
+        function loadFormData() {
+            try {
+                const saved = localStorage.getItem('descriptionGeneratorFormData');
+                if (saved) {
+                    const formData = JSON.parse(saved);
+                    if (formData.sheetUrl) document.getElementById('sheetUrl').value = formData.sheetUrl;
+                    if (formData.sheetName) document.getElementById('sheetName').value = formData.sheetName;
+                    if (formData.headerRow) document.getElementById('headerRow').value = formData.headerRow;
+                    if (formData.articleColumn) document.getElementById('articleColumn').value = formData.articleColumn;
+                    if (formData.nameColumn) document.getElementById('nameColumn').value = formData.nameColumn;
+                    if (formData.descriptionColumn) document.getElementById('descriptionColumn').value = formData.descriptionColumn;
+                    if (formData.startLine) {
+                        document.getElementById('startLine').value = formData.startLine;
+                        document.getElementById('startLineSlider').value = formData.startLine;
+                    }
+                    if (formData.endLine) {
+                        document.getElementById('endLine').value = formData.endLine;
+                        document.getElementById('endLineSlider').value = formData.endLine;
+                    }
+                    if (formData.prompt) document.getElementById('prompt').value = formData.prompt;
+                }
+            } catch (e) {
+                console.warn('Не удалось загрузить данные из localStorage:', e);
+            }
+        }
+        
+        // Auto-save on input change
+        const formFields = ['sheetUrl', 'sheetName', 'headerRow', 'articleColumn', 'nameColumn', 
+                           'descriptionColumn', 'startLine', 'endLine', 'prompt'];
+        formFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.addEventListener('input', saveFormData);
+                field.addEventListener('change', saveFormData);
+            }
+        });
+        
+        // Also save when sliders change
+        document.getElementById('startLineSlider').addEventListener('input', function() {
+            document.getElementById('startLine').value = this.value;
+            saveFormData();
+        });
+        
+        document.getElementById('endLineSlider').addEventListener('input', function() {
+            document.getElementById('endLine').value = this.value;
+            saveFormData();
+        });
+        
         // Initialize
+        loadFormData(); // Load saved data on page load
         addOutput('🌐 Генератор Описаний v1.0 - Retro Edition', 'info');
         addOutput('📊 Готов к подключению к серверу', 'info');
         

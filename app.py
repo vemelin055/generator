@@ -9,12 +9,14 @@ import queue
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from credentials_util import ensure_google_credentials_file
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production-' + os.urandom(24).hex())
+# Configure permanent sessions
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)  # Sessions last 30 days
 
 # Admin credentials from environment variables
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'vemelin055@gmail.com')
@@ -38,6 +40,8 @@ def login_required(f):
             if request.path.startswith('/api/'):
                 return jsonify({'error': 'Требуется авторизация', 'redirect': '/login'}), 401
             return redirect(url_for('login'))
+        # Refresh session on each request to keep it alive
+        session.permanent = True
         return f(*args, **kwargs)
     return decorated_function
 
@@ -134,6 +138,7 @@ def login():
         password = request.form.get('password', '')
         
         if email == ADMIN_EMAIL and password == ADMIN_PASSWORD:
+            session.permanent = True  # Make session permanent
             session['logged_in'] = True
             session['email'] = email
             return jsonify({'success': True, 'redirect': url_for('index')})
@@ -188,22 +193,42 @@ def start_generation():
         process_queue.get_nowait()
     
     def generation_worker():
+        error_count = 0
+        max_errors = 5  # Stop after 5 consecutive errors
         try:
             for line in run_generation(sheet_id, sheet_name, header_row, article_column, name_column, description_column, start_row, end_row, prompt, force, dry_run):
+                line_stripped = line.strip()
+                # Check if line indicates an error
+                if '❌' in line_stripped or 'ERROR' in line_stripped or 'Ошибка' in line_stripped:
+                    error_count += 1
+                    if error_count >= max_errors:
+                        process_queue.put({
+                            'timestamp': datetime.now().isoformat(),
+                            'message': f'❌ КРИТИЧЕСКАЯ ОШИБКА: Превышено максимальное количество ошибок ({max_errors}). Генерация остановлена.',
+                            'type': 'error'
+                        })
+                        break
+                else:
+                    error_count = 0  # Reset error count on success
+                
                 process_queue.put({
                     'timestamp': datetime.now().isoformat(),
-                    'message': line.strip(),
-                    'type': 'info'
+                    'message': line_stripped,
+                    'type': 'error' if '❌' in line_stripped or 'ERROR' in line_stripped else 'info'
                 })
-            process_queue.put({
-                'timestamp': datetime.now().isoformat(),
-                'message': '✅ Генерация завершена',
-                'type': 'success'
-            })
+            
+            if error_count < max_errors:
+                process_queue.put({
+                    'timestamp': datetime.now().isoformat(),
+                    'message': '✅ Генерация завершена',
+                    'type': 'success'
+                })
         except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
             process_queue.put({
                 'timestamp': datetime.now().isoformat(),
-                'message': f'❌ Ошибка: {str(e)}',
+                'message': f'❌ КРИТИЧЕСКАЯ ОШИБКА: {str(e)}\n{error_trace}',
                 'type': 'error'
             })
     
